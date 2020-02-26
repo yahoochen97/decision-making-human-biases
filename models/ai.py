@@ -1,5 +1,6 @@
 from utils.learn import qlearn, greedy
 from utils.config import config
+from utils.search import SEARCHER
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -13,15 +14,27 @@ EPISODES = config.getint('ai', 'EPISODES')
 
 
 class AI:
-    def __init__(self, env, reward_seq_len=100):
+    def __init__(self, env, steps, epsilon_exploration, Horizon=100):
         '''
         AI agent in Human-AI team.
         Inputs:
         - env: environment of the world 
+        - Horizon: maximal length of reward sequences
+        - steps: maximal length of sequential decision making
+        - epsilon_exploration: fraction of steps using for inferring agent latent variables
         '''
         self.env = env
-        self.reward_seq_len = reward_seq_len
+        self.Horizon = Horizon
         self._learn()
+        params = dict()
+        params['l'] = 0
+        params['u'] = 1
+        params['n'] = 100
+        params['N'] = 1000
+        self.searcher = SEARCHER(params)
+        self.timestamp = 0
+        self.steps = steps
+        self.epsilon_exploration = epsilon_exploration
 
     def _learn(self):
         '''
@@ -29,29 +42,47 @@ class AI:
         '''
         self.Q = qlearn(self.env,gamma=GAMMA,alpha=ALPHA,ep=EPSILON,episodes=EPISODES)
 
-    def recommend(self, x):
+    def recommend(self, cur_s):
         '''
         Provide recommendation as well as associated information to human
         Inputs:
-        - x: observation(current state) from the environment
+        - cur_s: observation(current state) from the environment
         Outputs:
         - infos: a dictionary that contains recommendation and associated information
             - eu: expected utilities of each action
         '''
+        if self.timestamp >= self.epsilon_exploration * self.steps:
+            s = cur_s
+        else:
+            sars = self._generate_sars()
+            s = self.searcher.choose_state(sars)
         infos = dict()
-        infos['eu'] = self.Q[x]
-        # infos['action'] = greedy(self.Q, x)
-        infos['rs'] = self._simulate(x)
-
+        infos['eu'] = self.Q[s]
+        infos['action'] = greedy(self.Q, s)
+        infos['rs'] = self._simulate(s)
         return infos
+
+    def _generate_sars(self):
+        '''
+        Generate state-action rewards sequences.
+        '''
+        nS = self.env.nS
+        nA = self.env.nA
+        sars = np.zeros((nS,nA, self.Horizon))
+
+        for s in range(nS):
+            self.env.set_state_s(s)
+            sars[s] = self._simulate(s)
+
+        return sars
 
     def _simulate(self,x):
         nA = self.env.nA
-        reward_sequences = np.zeros((nA, self.reward_seq_len))
+        reward_sequences = np.zeros((nA, self.Horizon))
         for a in range(nA):
             s_env = deepcopy(self.env)
             ca = deepcopy(a)
-            for i in range(self.reward_seq_len):
+            for i in range(self.Horizon):
                 s, r, done, _ = s_env.step(ca)
                 ca = greedy(self.Q, s)
                 reward_sequences[a, i] = r

@@ -4,6 +4,7 @@ from models.ai import AI
 from models.human import HUMAN
 from models.env import ENV
 from utils.config import config
+from models.agent import AGENT
 
 RE_LEN = config.getint('ai', 'RS_LEN')
 STEPS = config.getint('human', 'STEPS')
@@ -17,7 +18,7 @@ HYPERBOLIC = config.getboolean('human', 'HYPERBOLIC')
 
 def main():
     env = ENV()
-    ai = AI(env, reward_seq_len=RE_LEN)
+    ai = AI(env, steps=STEPS, epsilon_exploration=0.1, Horizon=RE_LEN)
     ai.plot_value()
     params = {'gamma': None, 'k':None}
     if HYPERBOLIC:
@@ -33,6 +34,7 @@ def main():
         env.render()
         infos = ai.recommend(s)
         a = human.decide(s, infos)
+        ai.searcher.update_belief(a)
         s, r, done, _ = env.step(a)
         human.rewarded(r)
         if done:
@@ -40,5 +42,23 @@ def main():
     env.close()
     print("total reward {} in {} steps.".format(np.sum(human.rs), step))
 
+def test():
+    env = ENV()
+    agent = AGENT(10, 1, env)
+    s = env.reset()
+    step = 0
+    rs = []
+    while step < STEPS:
+        step += 1
+        env.render()
+        a = agent.decide(s)
+        s, r, done, _ = env.step(a)
+        rs.append(r)
+        if done:
+            break
+    env.close()
+    print("total reward {} in {} steps.".format(np.sum(rs), step))
+
 if __name__ == "__main__":
-    main()
+    test()
+    # main()

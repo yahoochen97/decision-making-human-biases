@@ -66,6 +66,7 @@ def gen_trans_mat(maps,xy_to_s, p=1):
         return False
 
     P = {}
+    term_s = []
     for x,row in enumerate(maps):
         for y,letter in enumerate(row):
             # TODO: Do we allow multiple destinations?
@@ -76,6 +77,7 @@ def gen_trans_mat(maps,xy_to_s, p=1):
             for a in range(4):
                 if letter in TERMINATION:
                     P[s][a] = (1,s,0,True)
+                    term_s.append(s)
                     continue
                 item = []
                 for a_ in range(4):
@@ -94,7 +96,7 @@ def gen_trans_mat(maps,xy_to_s, p=1):
                     s_ = xy_to_s[(x_, y_)]
                     item += [(prob,s_,rew,done)]
                 P[s][a] = item.copy()
-    return P
+    return P, term_s
 
 def plot_env(maps, cur_xy):
     height = len(maps)
@@ -136,11 +138,14 @@ class ENV:
         self.maps = maps
         self.nA = 4
         self.xy_to_s, self.s_to_xy, self.nS = build_states(maps)
-        self.P = gen_trans_mat(maps, self.xy_to_s, p=p)
+        self.P, self.term_s = gen_trans_mat(maps, self.xy_to_s, p=p)
         self.init_state = self.cur_state = self.xy_to_s[start_xy]
 
-    def set_state(self, xy):
+    def set_state_xy(self, xy):
         self.cur_state = self.xy_to_s[xy]
+    
+    def set_state_s(self, s):
+        self.cur_state = s
 
     def reset(self):
         self.cur_state = self.init_state
